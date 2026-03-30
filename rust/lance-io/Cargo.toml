@@ -12,10 +12,9 @@ categories.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-object_store = { workspace = true }
 lance-arrow.workspace = true
 lance-core.workspace = true
-arrow = { workspace = true, features = ["ffi"] }
+arrow = { version = "54.1", default-features = false, features = ["ffi"] }
 arrow-arith.workspace = true
 arrow-array.workspace = true
 arrow-buffer.workspace = true
@@ -42,6 +41,7 @@ rand.workspace = true
 
 # WASM-gated deps (filesystem, cloud auth, async runtime)
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+object_store = { version = "0.11.0", default-features = false }
 tokio.workspace = true
 shellexpand.workspace = true
 path_abs.workspace = true
@@ -51,6 +51,7 @@ async-priority-channel = "0.2.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "1.23", features = ["sync", "macros", "rt", "time"] }
+object_store = { version = "0.11.0", default-features = false }
 
 [dev-dependencies]
 criterion.workspace = true

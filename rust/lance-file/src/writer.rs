@@ -84,7 +84,10 @@ pub struct FileWriter<M: ManifestProvider + Send + Sync> {
     batch_id: i32,
     page_table: PageTable,
     metadata: Metadata,
+    #[cfg(not(target_arch = "wasm32"))]
     stats_collector: Option<statistics::StatisticsCollector>,
+    #[cfg(target_arch = "wasm32")]
+    stats_collector: Option<()>,
     manifest_provider: PhantomData<M>,
 }
 
@@ -122,7 +125,12 @@ impl<M: ManifestProvider + Send + Sync> FileWriter<M> {
 
         let stats_collector = if !collect_stats_for_fields.is_empty() {
             let stats_schema = schema.project_by_ids(&collect_stats_for_fields, true);
-            statistics::StatisticsCollector::try_new(&stats_schema)
+            {
+                #[cfg(not(target_arch = "wasm32"))]
+                { statistics::StatisticsCollector::try_new(&stats_schema) }
+                #[cfg(target_arch = "wasm32")]
+                { None::<()> }
+            }
         } else {
             None
         };
@@ -188,6 +196,7 @@ impl<M: ManifestProvider + Send + Sync> FileWriter<M> {
         // If we are collecting stats for this column, collect them.
         // Statistics need to traverse nested arrays, so it's a separate loop
         // from writing which is done on top-level arrays.
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(stats_collector) = &mut self.stats_collector {
             for (field, arrays) in fields_in_batches(batches, &self.schema) {
                 if let Some(stats_builder) = stats_collector.get_builder(field.id) {
@@ -583,10 +592,13 @@ impl<M: ManifestProvider + Send + Sync> FileWriter<M> {
     }
 
     async fn write_statistics(&mut self) -> Result<Option<StatisticsMetadata>> {
+        #[cfg(not(target_arch = "wasm32"))]
         let statistics = self
             .stats_collector
             .as_mut()
             .map(|collector| collector.finish());
+        #[cfg(target_arch = "wasm32")]
+        let statistics: Option<Result<arrow_array::RecordBatch>> = None;
 
         match statistics {
             Some(Ok(stats_batch)) if stats_batch.num_rows() > 0 => {

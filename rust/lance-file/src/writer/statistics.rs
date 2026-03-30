@@ -1,3 +1,4 @@
+#![cfg(not(target_arch = "wasm32"))]
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright The Lance Authors
 
@@ -23,6 +24,7 @@ use arrow_array::{
     RecordBatch, StructArray,
 };
 use arrow_schema::{ArrowError, DataType, Field as ArrowField, Schema as ArrowSchema, TimeUnit};
+#[cfg(not(target_arch = "wasm32"))]
 use datafusion_common::ScalarValue;
 use lance_arrow::{as_fixed_size_binary_array, DataTypeExt};
 use lance_core::datatypes::{Field, Schema};
