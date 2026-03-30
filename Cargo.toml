@@ -15,6 +15,7 @@ members = [
     "rust/lance-test-macros",
     "rust/lance-testing",
     "rust/lance-encoding/src/compression_algo/fsst",
+    "rust/yata-wasm",
 ]
 exclude = ["python"]
 # Python package needs to be built by maturin.

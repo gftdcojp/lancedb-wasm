@@ -35,15 +35,21 @@ hyperloglogplus.workspace = true
 prost-types.workspace = true
 rand.workspace = true
 snafu.workspace = true
-tokio.workspace = true
 tracing.workspace = true
-zstd.workspace = true
 bytemuck = "1.14"
 arrayref = "0.3.7"
 paste = "1.0.15"
 seq-macro = "0.3.5"
 byteorder.workspace = true
+
+# WASM-gated: these deps need native/C toolchain
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio.workspace = true
+zstd.workspace = true
 lz4 = "1.28.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.23", features = ["sync", "macros", "rt", "time"] }
 
 [dev-dependencies]
 lance-testing.workspace = true
@@ -66,7 +72,6 @@ pprof = { workspace = true }
 protoc = ["dep:protobuf-src"]
 
 [package.metadata.docs.rs]
-# docs.rs uses an older version of Ubuntu that does not have the necessary protoc version
 features = ["protoc"]
 
 [[bench]]

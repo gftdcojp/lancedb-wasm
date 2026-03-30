@@ -82,16 +82,19 @@ pub trait BufferCompressor: std::fmt::Debug + Send + Sync {
 }
 
 #[derive(Debug, Default)]
+#[cfg(not(target_arch = "wasm32"))]
 pub struct ZstdBufferCompressor {
     compression_level: i32,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl ZstdBufferCompressor {
     pub fn new(compression_level: i32) -> Self {
         Self { compression_level }
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl BufferCompressor for ZstdBufferCompressor {
     fn compress(&self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
         let mut encoder = zstd::Encoder::new(output_buf, self.compression_level)?;
@@ -114,8 +117,10 @@ impl BufferCompressor for ZstdBufferCompressor {
 }
 
 #[derive(Debug, Default)]
+#[cfg(not(target_arch = "wasm32"))]
 pub struct Lz4BufferCompressor {}
 
+#[cfg(not(target_arch = "wasm32"))]
 impl BufferCompressor for Lz4BufferCompressor {
     fn compress(&self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
         lz4::block::compress_to_buffer(input_buf, None, true, output_buf)
@@ -142,6 +147,30 @@ impl BufferCompressor for Lz4BufferCompressor {
 
 #[derive(Debug, Default)]
 pub struct NoopBufferCompressor {}
+
+// WASM stubs for compression (not available in wasm32)
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug)]
+pub struct ZstdBufferCompressor { pub compression_level: i32 }
+#[cfg(target_arch = "wasm32")]
+impl ZstdBufferCompressor {
+    pub fn new(compression_level: i32) -> Self { Self { compression_level } }
+}
+#[cfg(target_arch = "wasm32")]
+impl BufferCompressor for ZstdBufferCompressor {
+    fn compress(&self, _: &[u8], _: &mut Vec<u8>) -> Result<()> { Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "zstd unavailable in wasm").into()) }
+    fn decompress(&self, _: &[u8], _: &mut Vec<u8>) -> Result<()> { Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "zstd unavailable in wasm").into()) }
+    fn name(&self) -> &str { "zstd-wasm-stub" }
+}
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Default)]
+pub struct Lz4BufferCompressor {}
+#[cfg(target_arch = "wasm32")]
+impl BufferCompressor for Lz4BufferCompressor {
+    fn compress(&self, _: &[u8], _: &mut Vec<u8>) -> Result<()> { Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "lz4 unavailable in wasm").into()) }
+    fn decompress(&self, _: &[u8], _: &mut Vec<u8>) -> Result<()> { Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "lz4 unavailable in wasm").into()) }
+    fn name(&self) -> &str { "lz4-wasm-stub" }
+}
 
 impl BufferCompressor for NoopBufferCompressor {
     fn compress(&self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {

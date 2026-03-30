@@ -56,7 +56,7 @@ fn initial_upload_size() -> usize {
                 if *size < INITIAL_UPLOAD_STEP {
                     // Minimum part size in GCS and S3
                     panic!("LANCE_INITIAL_UPLOAD_SIZE must be at least 5MB");
-                } else if *size > 1024 * 1024 * 1024 * 5 {
+                } else if *size > 5_usize.saturating_mul(1024 * 1024 * 1024) {
                     // Maximum part size in GCS and S3
                     panic!("LANCE_INITIAL_UPLOAD_SIZE must be at most 5GB");
                 }

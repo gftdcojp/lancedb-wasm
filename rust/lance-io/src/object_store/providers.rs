@@ -19,6 +19,7 @@ pub mod aws;
 pub mod azure;
 #[cfg(feature = "gcp")]
 pub mod gcp;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod local;
 pub mod memory;
 
@@ -216,12 +217,14 @@ impl Default for ObjectStoreRegistry {
         let mut providers: HashMap<String, Arc<dyn ObjectStoreProvider>> = HashMap::new();
 
         providers.insert("memory".into(), Arc::new(memory::MemoryStoreProvider));
+        #[cfg(not(target_arch = "wasm32"))]
         providers.insert("file".into(), Arc::new(local::FileStoreProvider));
         // The "file" scheme has special optimized code paths that bypass
         // the ObjectStore API for better performance. However, this can make it
         // hard to test when using ObjectStore wrappers, such as IOTrackingStore.
         // So we provide a "file-object-store" scheme that uses the ObjectStore API.
         // The specialized code paths are differentiated by the scheme name.
+        #[cfg(not(target_arch = "wasm32"))]
         providers.insert(
             "file-object-store".into(),
             Arc::new(local::FileStoreProvider),

@@ -10,6 +10,7 @@ use std::{
 use futures::{stream::BoxStream, Stream, StreamExt};
 use pin_project::pin_project;
 use tokio::sync::Semaphore;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio_util::sync::PollSemaphore;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,7 +34,10 @@ struct InnerState<'a, T> {
     exhausted: bool,
     left_buffered: u32,
     right_buffered: u32,
+    #[cfg(not(target_arch = "wasm32"))]
     available_buffer: Option<PollSemaphore>,
+    #[cfg(target_arch = "wasm32")]
+    available_buffer: Option<()>,
 }
 
 /// The stream returned by [`share`].
@@ -46,9 +50,12 @@ impl<'a, T: Clone> SharedStream<'a, T> {
     pub fn new(inner: BoxStream<'a, T>, capacity: Capacity) -> (Self, Self) {
         let available_buffer = match capacity {
             Capacity::Unbounded => None,
+            #[cfg(not(target_arch = "wasm32"))]
             Capacity::Bounded(capacity) => Some(PollSemaphore::new(Arc::new(Semaphore::new(
                 capacity as usize,
             )))),
+            #[cfg(target_arch = "wasm32")]
+            Capacity::Bounded(_) => None,
         };
         let state = InnerState {
             inner: Some(inner),
@@ -98,6 +105,7 @@ impl<T: Clone> Stream for SharedStream<'_, T> {
                     inner_state.right_buffered -= 1;
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
             if let Some(available_buffer) = inner_state.available_buffer.as_mut() {
                 available_buffer.add_permits(1);
             }
@@ -107,10 +115,9 @@ impl<T: Clone> Stream for SharedStream<'_, T> {
                 return std::task::Poll::Ready(None);
             }
             // No buffered items, if we have room in the buffer, then try and poll for one
+            #[cfg(not(target_arch = "wasm32"))]
             let permit = if let Some(available_buffer) = inner_state.available_buffer.as_mut() {
                 match available_buffer.poll_acquire(cx) {
-                    // Can return None if the semaphore is closed but we never close the semaphore
-                    // so its safe to unwrap here
                     std::task::Poll::Ready(permit) => Some(permit.unwrap()),
                     std::task::Poll::Pending => {
                         return std::task::Poll::Pending;
@@ -119,6 +126,8 @@ impl<T: Clone> Stream for SharedStream<'_, T> {
             } else {
                 None
             };
+            #[cfg(target_arch = "wasm32")]
+            let permit: Option<()> = None;
             if let Some(polling_side) = inner_state.polling.as_ref() {
                 if *polling_side != self.side {
                     // Another task is already polling the inner stream, so we don't need to do anything
@@ -150,6 +159,7 @@ impl<T: Clone> Stream for SharedStream<'_, T> {
                 }
                 std::task::Poll::Ready(Some(item)) => {
                     // We got an item, forget the permit to mark that we can take one fewer items
+                    #[cfg(not(target_arch = "wasm32"))]
                     if let Some(permit) = permit {
                         permit.forget();
                     }

@@ -24,13 +24,16 @@ use object_store::aws::AwsCredentialProvider;
 use object_store::DynObjectStore;
 use object_store::Error as ObjectStoreError;
 use object_store::{path::Path, ObjectMeta, ObjectStore as OSObjectStore};
+#[cfg(not(target_arch = "wasm32"))]
 use providers::local::FileStoreProvider;
 use providers::memory::MemoryStoreProvider;
+#[cfg(not(target_arch = "wasm32"))]
 use shellexpand::tilde;
 use snafu::location;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
+#[cfg(not(target_arch = "wasm32"))]
 use super::local::LocalObjectReader;
 mod list_retry;
 pub mod providers;
@@ -222,8 +225,7 @@ impl PartialEq for ObjectStoreParams {
                     .as_ref()
                     .map(|(store, url)| (Arc::as_ptr(store), url))
             && self.s3_credentials_refresh_offset == other.s3_credentials_refresh_offset
-            && self.aws_credentials.as_ref().map(Arc::as_ptr)
-                == other.aws_credentials.as_ref().map(Arc::as_ptr)
+            && cfg!(not(target_arch = "wasm32"))
             && self.object_store_wrapper.as_ref().map(Arc::as_ptr)
                 == other.object_store_wrapper.as_ref().map(Arc::as_ptr)
             && self.storage_options == other.storage_options
@@ -232,6 +234,7 @@ impl PartialEq for ObjectStoreParams {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn uri_to_url(uri: &str) -> Result<Url> {
     match Url::parse(uri) {
         Ok(url) if url.scheme().len() == 1 && cfg!(windows) => {
@@ -243,6 +246,15 @@ fn uri_to_url(uri: &str) -> Result<Url> {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn uri_to_url(uri: &str) -> Result<Url> {
+    Url::parse(uri).map_err(|e| Error::InvalidInput {
+        source: format!("Invalid URI: {}: {}", uri, e).into(),
+        location: snafu::location!(),
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn expand_path(str_path: impl AsRef<str>) -> Result<std::path::PathBuf> {
     let expanded = tilde(str_path.as_ref()).to_string();
 
@@ -260,6 +272,7 @@ fn expand_path(str_path: impl AsRef<str>) -> Result<std::path::PathBuf> {
     Ok(expanded_path)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn local_path_to_url(str_path: &str) -> Result<Url> {
     let expanded_path = expand_path(str_path)?;
 
@@ -331,6 +344,7 @@ impl ObjectStore {
     }
 
     /// Local object store.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn local() -> Self {
         let provider = FileStoreProvider;
         provider
@@ -379,7 +393,10 @@ impl ObjectStore {
     /// - ``path``: Absolute path to the file.
     pub async fn open(&self, path: &Path) -> Result<Box<dyn Reader>> {
         match self.scheme.as_str() {
-            "file" => LocalObjectReader::open(path, self.block_size, None).await,
+            #[cfg(not(target_arch = "wasm32"))]
+            "file" => super::local::LocalObjectReader::open(path, self.block_size, None).await,
+            #[cfg(target_arch = "wasm32")]
+            "file" => Err(Error::invalid_input("local filesystem not available in wasm", snafu::location!())),
             _ => Ok(Box::new(CloudObjectReader::new(
                 self.inner.clone(),
                 path.clone(),
@@ -408,7 +425,10 @@ impl ObjectStore {
         }
 
         match self.scheme.as_str() {
-            "file" => LocalObjectReader::open(path, self.block_size, Some(known_size)).await,
+            #[cfg(not(target_arch = "wasm32"))]
+            "file" => super::local::LocalObjectReader::open(path, self.block_size, Some(known_size)).await,
+            #[cfg(target_arch = "wasm32")]
+            "file" => Err(Error::invalid_input("local filesystem not available in wasm", snafu::location!())),
             _ => Ok(Box::new(CloudObjectReader::new(
                 self.inner.clone(),
                 path.clone(),
@@ -420,18 +440,30 @@ impl ObjectStore {
     }
 
     /// Create an [ObjectWriter] from local [std::path::Path]
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn create_local_writer(path: &std::path::Path) -> Result<ObjectWriter> {
         let object_store = Self::local();
         let absolute_path = expand_path(path.to_string_lossy())?;
-        let os_path = Path::from_absolute_path(absolute_path)?;
+        let os_path = {
+            #[cfg(not(target_arch = "wasm32"))]
+            { Path::from_absolute_path(absolute_path)? }
+            #[cfg(target_arch = "wasm32")]
+            { Path::parse(absolute_path.to_str().unwrap_or(""))? }
+        };
         object_store.create(&os_path).await
     }
 
     /// Open an [Reader] from local [std::path::Path]
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn open_local(path: &std::path::Path) -> Result<Box<dyn Reader>> {
         let object_store = Self::local();
         let absolute_path = expand_path(path.to_string_lossy())?;
-        let os_path = Path::from_absolute_path(absolute_path)?;
+        let os_path = {
+            #[cfg(not(target_arch = "wasm32"))]
+            { Path::from_absolute_path(absolute_path)? }
+            #[cfg(target_arch = "wasm32")]
+            { Path::parse(absolute_path.to_str().unwrap_or(""))? }
+        };
         object_store.open(&os_path).await
     }
 
@@ -494,6 +526,7 @@ impl ObjectStore {
 
         if self.is_local() {
             // Local file system needs to delete directories as well.
+            #[cfg(not(target_arch = "wasm32"))]
             return super::local::remove_dir_all(&path);
         }
         let sub_entries = self

@@ -45,6 +45,10 @@ lazy_static! {
                 SimdSupport::None
             }
         }
+        #[cfg(target_arch = "wasm32")]
+        {
+            SimdSupport::None
+        }
     };
 }
 

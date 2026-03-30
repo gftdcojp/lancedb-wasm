@@ -13,6 +13,7 @@ use lance_core::{Error, Result};
 
 pub mod encodings;
 pub mod ffi;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod local;
 pub mod object_reader;
 pub mod object_store;
