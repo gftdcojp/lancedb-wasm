@@ -3,6 +3,8 @@ name = "yata-wasm"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [lib]
 crate-type = ["cdylib"]
 
@@ -14,15 +16,22 @@ serde_json = "1"
 lance-core = { path = "../lance-core" }
 lance-encoding = { path = "../lance-encoding", default-features = false }
 lance-io = { path = "../lance-io", default-features = false }
-arrow-array.workspace = true
-arrow-schema.workspace = true
-bytes.workspace = true
+lance-file = { path = "../lance-file", default-features = false }
+lance-table = { path = "../lance-table", default-features = false }
+arrow-array = "54.1"
+arrow-schema = "54.1"
+bytes = "1"
 futures = "0.3"
-prost.workspace = true
-prost-types.workspace = true
-object_store.workspace = true
-async-trait.workspace = true
+prost = "0.13"
+prost-types = "0.13"
+object_store = { version = "0.11.0", default-features = false }
+async-trait = "0.1"
 tokio = { version = "1.23", features = ["sync", "macros", "rt", "time"] }
+uuid = { version = "1", features = ["v4", "js"] }
 
 [build-dependencies]
-prost-build.workspace = true
+prost-build = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
